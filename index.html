@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Liquid Calculus — Караоке</title>
+
+  <link rel="stylesheet" href="style/style.css">
+  <link rel="stylesheet" href="style/album.css">
+  <link rel="stylesheet" href="style/footer.css">
+</head>
+<body>
+  <header class="site-header glass" role="banner">
+    <div class="header-inner">
+      <div class="logo-wrap">
+        <svg class="logo" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#86c7a3"/><stop offset="1" stop-color="#2e8f62"/></linearGradient></defs>
+          <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#g)"></rect>
+        </svg>
+        <div>
+          <div class="site-title">Liquid Calculus</div>
+          <div class="site-sub">караоке • АйТи Топ</div>
+        </div>
+      </div>
+
+      <nav class="header-actions" aria-label="Навигация">
+        <a class="glass small" href="#player">Плеер</a>
+        <a class="glass small" href="#albums">Альбомы</a>
+        <a class="glass small" href="#contacts">Контакты</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="player" class="player-section">
+      <div class="player-wrap glass large-panel" role="region" aria-label="Аудиоплеер">
+        <audio id="audio" preload="metadata" src="music/track.mp3"></audio>
+
+        <div class="player-top">
+          <div class="track-info">
+            <div class="track-title">Айти Топ — Караоке (demo)</div>
+            <div class="track-sub">Liquid Calculus</div>
+          </div>
+
+          <div class="volume-wrap" aria-hidden="false">
+            <button id="vol-minus" class="control-btn" aria-label="Уменьшить громкость">−</button>
+            <div class="volume-slider-wrap">
+              <input id="volume" class="volume-slider" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Громкость">
+              <div id="volume-bubble" class="bubble" aria-hidden="true">80%</div>
+            </div>
+            <button id="vol-plus" class="control-btn" aria-label="Увеличить громкость">+</button>
+          </div>
+        </div>
+
+        <div class="lyrics-viz" aria-live="polite">
+          <p id="currentLyric" class="lyric current">Загрузка...</p>
+          <p id="nextLyric" class="lyric next" aria-hidden="true"></p>
+        </div>
+
+        <div class="controls-row">
+          <button id="playBtn" class="play-btn big glass" aria-label="Старт">Старт</button>
+        </div>
+
+        <div class="waveform-wrap">
+          <canvas id="waveform" height="80" aria-label="Waveform scrubber"></canvas>
+        </div>
+
+        <div class="progress-row">
+          <div class="time left" id="timeCurrent">0:00</div>
+          <input id="progress" class="progress" type="range" min="0" max="100" step="0.01" value="0" aria-label="Прогресс трека">
+          <div class="time right" id="timeTotal">0:00</div>
+        </div>
+
+        <div class="player-footnote small-note" style="opacity:0.0; height:0; overflow:hidden;">(подсказки скрыты)</div>
+
+      </div>
+    </section>
+
+    <section id="albums" class="albums-section">
+      <h2 class="section-title">АйТи Топ</h2>
+      <div class="carousel carousel-single" id="album-carousel" aria-roledescription="carousel" tabindex="0">
+        <button class="carousel-arrow left" aria-label="Предыдущая">‹</button>
+        <div class="carousel-viewport">
+          <div class="carousel-track">
+            <div class="slide"><img src="assets/images/album/1.jpg" alt="Album 1"></div>
+            <div class="slide"><img src="assets/images/album/2.jpg" alt="Album 2"></div>
+            <div class="slide"><img src="assets/images/album/3.jpg" alt="Album 3"></div>
+            <div class="slide"><img src="assets/images/album/4.jpg" alt="Album 4"></div>
+            <div class="slide"><img src="assets/images/album/5.jpg" alt="Album 5"></div>
+            <div class="slide"><img src="assets/images/album/6.jpg" alt="Album 6"></div>
+            <div class="slide"><img src="assets/images/album/7.jpg" alt="Album 7"></div>
+            <div class="slide"><img src="assets/images/album/8.jpg" alt="Album 8"></div>
+            <div class="slide"><img src="assets/images/album/9.jpg" alt="Album 9"></div>
+            <div class="slide"><img src="assets/images/album/10.jpg" alt="Album 10"></div>
+          </div>
+        </div>
+        <button class="carousel-arrow right" aria-label="Следующая">›</button>
+        <div class="carousel-dots" aria-hidden="true"></div>
+      </div>
+
+      <h2 class="section-title">Преподаватели</h2>
+      <div class="carousel carousel-single" id="teachers-carousel" aria-roledescription="carousel" tabindex="0">
+        <button class="carousel-arrow left" aria-label="Предыдущая">‹</button>
+        <div class="carousel-viewport">
+          <div class="carousel-track">
+            <div class="slide"><img src="assets/images/teachers/1.jpg" alt="Teacher 1"></div>
+            <div class="slide"><img src="assets/images/teachers/2.jpg" alt="Teacher 2"></div>
+            <div class="slide"><img src="assets/images/teachers/3.jpg" alt="Teacher 3"></div>
+            <div class="slide"><img src="assets/images/teachers/4.jpg" alt="Teacher 4"></div>
+            <div class="slide"><img src="assets/images/teachers/5.jpg" alt="Teacher 5"></div>
+            <div class="slide"><img src="assets/images/teachers/6.jpg" alt="Teacher 6"></div>
+          </div>
+        </div>
+        <button class="carousel-arrow right" aria-label="Следующая">›</button>
+        <div class="carousel-dots" aria-hidden="true"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contacts" class="site-footer glass" role="contentinfo">
+    <div>© 2025 Liquid Calculus | IT College — <a href="https://github.com" target="_blank" rel="noopener">GitHub</a></div>
+  </footer>
+
+  <!-- lightbox simplified: only click-out to close, no arrows / no cross -->
+  <div id="lightbox" class="lightbox" aria-hidden="true">
+    <img id="lbImage" src="" alt="">
+  </div>
+
+  <script src="script/album.js" defer></script>
+  <script src="script/script.js" defer></script>
+</body>
+</html>

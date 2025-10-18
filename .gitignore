@@ -1,0 +1,4 @@
+#/music/*.mp3
+.vscode/
+*.log
+*.DS_Store
