@@ -61,10 +61,6 @@
           <button id="playBtn" class="play-btn big glass" aria-label="Старт">Старт</button>
         </div>
 
-        <div class="waveform-wrap">
-          <canvas id="waveform" height="80" aria-label="Waveform scrubber"></canvas>
-        </div>
-
         <div class="progress-row">
           <div class="time left" id="timeCurrent">0:00</div>
           <input id="progress" class="progress" type="range" min="0" max="100" step="0.01" value="0" aria-label="Прогресс трека">
@@ -72,7 +68,6 @@
         </div>
 
         <div class="player-footnote small-note" style="opacity:0.0; height:0; overflow:hidden;">(подсказки скрыты)</div>
-
       </div>
     </section>
 
@@ -120,10 +115,6 @@
   <footer id="contacts" class="site-footer glass" role="contentinfo">
     <div>© 2025 Liquid Calculus | IT College — <a href="https://github.com" target="_blank" rel="noopener">GitHub</a></div>
   </footer>
-
-  <div id="lightbox" class="lightbox" aria-hidden="true">
-    <img id="lbImage" src="" alt="">
-  </div>
 
   <script src="script/album.js" defer></script>
   <script src="script/script.js" defer></script>
