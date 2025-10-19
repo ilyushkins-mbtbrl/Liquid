@@ -1,4 +1,4 @@
-/* script/script.js — финальная версия (убраны offset/marks/import/export/keyboard shortcuts) */
+/* script/script.js — Safari fixes: touchstart fallback for AudioContext, DPR-safe canvas handling */
 
 /* Elements */
 const audio = document.getElementById('audio');
@@ -15,9 +15,9 @@ const currentLyric = document.getElementById('currentLyric');
 const nextLyric = document.getElementById('nextLyric');
 
 const waveformCanvas = document.getElementById('waveform');
-const waveformCtx = waveformCanvas.getContext('2d');
+let waveformCtx = waveformCanvas && waveformCanvas.getContext ? waveformCanvas.getContext('2d') : null;
 
-/* Lyrics array — каждое время увеличено на +0.75s */
+/* Lyrics array — как у тебя */
 const lyrics = [
   { time: 16.75, text: "В аудитории свет, как на сцене," },
   { time: 20.75, text: "Курсоры танцуют в ритме идей." },
@@ -75,7 +75,7 @@ function fmtTime(t){
   return `${min}:${sec.toString().padStart(2,'0')}`;
 }
 
-/* AudioContext + waveform cache (lightweight) */
+/* AudioContext + waveform cache */
 let audioCtx = null;
 let audioBufferCache = null;
 let waveformBaseImageData = null;
@@ -85,14 +85,19 @@ let waveformBaseHeight = 0;
 let pendingWaveform = false;
 
 /* create AudioContext on first user gesture to avoid browser blocks */
+/* Safari iOS often fires touchstart before pointerdown — add both */
 function initAudioContextOnce(){
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // resume immediately if possible (Safari often requires resume to allow decoding)
+    audioCtx.resume && audioCtx.resume().catch(()=>{});
     if (pendingWaveform) { setTimeout(()=> { drawWaveformFromAudio().catch(()=>{}); }, 120); pendingWaveform = false; }
   } catch(e){ console.warn('AudioContext init failed', e); }
 }
 document.addEventListener('pointerdown', initAudioContextOnce, { once: true, passive: true });
+// touchstart fallback for older iOS Safari
+document.addEventListener('touchstart', initAudioContextOnce, { once: true, passive: true });
 
 /* Volume */
 function changeVolume(){
@@ -107,16 +112,25 @@ function changeVolume(){
     volumeBubble.style.transform = 'translateY(-6px)';
   }, 800);
 }
-volumeSlider.addEventListener('input', changeVolume);
-volPlusBtn?.addEventListener('click', ()=> { volumeSlider.value = Math.min(parseFloat(volumeSlider.value) + 0.05, 1); changeVolume(); });
-volMinusBtn?.addEventListener('click', ()=> { volumeSlider.value = Math.max(parseFloat(volumeSlider.value) - 0.05, 0); changeVolume(); });
-volumeSlider.value = 0.8;
+function saveVolume(v){ try { localStorage.setItem('lc_volume', String(v)); } catch(_){} }
+function loadVolume(){ try { const v = localStorage.getItem('lc_volume'); return v !== null ? parseFloat(v) : null; } catch(_) { return null; } }
+
+volumeSlider.addEventListener('input', ()=>{ changeVolume(); saveVolume(parseFloat(volumeSlider.value)); });
+volPlusBtn?.addEventListener('click', ()=> { volumeSlider.value = Math.min(parseFloat(volumeSlider.value) + 0.05, 1); changeVolume(); saveVolume(parseFloat(volumeSlider.value)); });
+volMinusBtn?.addEventListener('click', ()=> { volumeSlider.value = Math.max(parseFloat(volumeSlider.value) - 0.05, 0); changeVolume(); saveVolume(parseFloat(volumeSlider.value)); });
+
+const savedV = loadVolume();
+if (savedV !== null) { volumeSlider.value = savedV; }
 changeVolume();
 
 /* Player basic */
 audio.addEventListener('loadedmetadata', () => {
   timeTotal.textContent = fmtTime(audio.duration);
   progress.max = audio.duration;
+  const savedTime = (()=>{ try { const t = localStorage.getItem('lc_last_time'); return t ? parseFloat(t) : null; } catch(_) { return null; } })();
+  if (savedTime && !isNaN(savedTime) && savedTime < audio.duration - 2) {
+    audio.currentTime = savedTime;
+  }
   if (!audioCtx) pendingWaveform = true;
   else setTimeout(()=> { drawWaveformFromAudio().catch(()=>{}); }, 80);
 });
@@ -127,21 +141,28 @@ audio.addEventListener('timeupdate', () => {
   }
   updateLyricsByTime();
   highlightWaveformAtCurrent();
+  // save occasionally
+  if (Math.floor(audio.currentTime) % 5 === 0) {
+    try { localStorage.setItem('lc_last_time', String(audio.currentTime)); } catch(_) {}
+  }
 });
-audio.addEventListener('play', ()=> {
-  playBtn.textContent = 'Пауза';
-});
-audio.addEventListener('pause', ()=> {
-  playBtn.textContent = 'Старт';
-});
+audio.addEventListener('play', ()=> { playBtn.textContent = 'Пауза'; });
+audio.addEventListener('pause', ()=> { playBtn.textContent = 'Старт'; });
 
-playBtn.addEventListener('click', ()=> {
+playBtn.addEventListener('click', async ()=> {
   initAudioContextOnce();
-  if (audio.paused) audio.play().catch(()=>{});
-  else audio.pause();
+  try {
+    if (audio.paused) audio.play().catch(async (err) => {
+      // try resume audio context then play
+      try { await audioCtx?.resume(); await audio.play(); } catch(e){ console.warn('play failed', e); }
+    });
+    else audio.pause();
+  } catch(err){
+    try { await audioCtx?.resume(); await audio.play(); } catch(e) { console.warn('play failed', e); }
+  }
 });
 
-/* Seek via progress range (mouse/touch only) */
+/* Seek via progress range */
 progress.addEventListener('input', (e)=> {
   audio.currentTime = parseFloat(e.target.value);
   updateLyricsByTime(true);
@@ -171,10 +192,10 @@ function renderLyrics(){
   nextLyric.textContent = nxt ? nxt.text : '';
 }
 
-/* Waveform decode & draw: decode once, cache, overlay progress fast */
+/* Waveform decode & draw */
 async function decodeAudio(url){
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { mode: 'cors' });
     const arrayBuffer = await res.arrayBuffer();
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const buffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
@@ -197,9 +218,17 @@ async function drawWaveformFromAudio(){
     const raw = buf.getChannelData(0);
     const width = Math.max(400, waveformCanvas.clientWidth || 800);
     const height = waveformCanvas.height || 80;
-    waveformCanvas.width = width * devicePixelRatio;
-    waveformCanvas.height = height * devicePixelRatio;
-    waveformCtx.scale(devicePixelRatio, devicePixelRatio);
+    const dpr = window.devicePixelRatio || 1;
+
+    // set proper canvas size and reset transform to avoid accumulation
+    waveformCanvas.width = Math.floor(width * dpr);
+    waveformCanvas.height = Math.floor(height * dpr);
+    waveformCanvas.style.width = width + 'px';
+    waveformCanvas.style.height = height + 'px';
+    if (!waveformCtx) waveformCtx = waveformCanvas.getContext('2d');
+    // reset transform explicitly (works in Safari)
+    waveformCtx.setTransform(1,0,0,1,0,0);
+    waveformCtx.scale(dpr, dpr);
     waveformCtx.clearRect(0,0,width,height);
 
     const step = Math.ceil(raw.length / width);
@@ -240,9 +269,14 @@ async function drawWaveformFromAudio(){
 function drawFlatWave(){
   const width = Math.max(400, waveformCanvas.clientWidth || 800);
   const height = waveformCanvas.height || 80;
-  waveformCanvas.width = width * devicePixelRatio;
-  waveformCanvas.height = height * devicePixelRatio;
-  waveformCtx.scale(devicePixelRatio, devicePixelRatio);
+  const dpr = window.devicePixelRatio || 1;
+  waveformCanvas.width = Math.floor(width * dpr);
+  waveformCanvas.height = Math.floor(height * dpr);
+  waveformCanvas.style.width = width + 'px';
+  waveformCanvas.style.height = height + 'px';
+  if (!waveformCtx) waveformCtx = waveformCanvas.getContext('2d');
+  waveformCtx.setTransform(1,0,0,1,0,0);
+  waveformCtx.scale(dpr, dpr);
   waveformCtx.clearRect(0,0,width,height);
   waveformCtx.fillStyle = 'rgba(255,255,255,0.04)';
   waveformCtx.fillRect(0, height/2 - 1, width, 2);
@@ -254,9 +288,13 @@ function highlightWaveformAtCurrent(){
   const width = waveformCanvas.clientWidth || Math.max(400,800);
   const height = waveformCanvas.height || 80;
   const ctx = waveformCtx;
+  if (!ctx) return;
   if (waveformBaseImageData && waveformBaseWidth === width && waveformBaseHeight === height){
     ctx.putImageData(waveformBaseImageData, 0, 0);
   } else if (waveformBaseImg) {
+    ctx.setTransform(1,0,0,1,0,0);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.scale(dpr, dpr);
     ctx.clearRect(0,0,width,height);
     ctx.drawImage(waveformBaseImg, 0,0, width, height);
   } else {
@@ -271,13 +309,30 @@ function highlightWaveformAtCurrent(){
   ctx.restore();
 }
 
-/* waveform click => seek */
-waveformCanvas.addEventListener('click', (e)=>{
-  const rect = waveformCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const ratio = x / rect.width;
-  if (audio.duration) audio.currentTime = ratio * audio.duration;
-});
+/* waveform seek - pointer + touch/mouse fallback */
+if (window.PointerEvent) {
+  waveformCanvas.addEventListener('pointerdown', (e)=>{
+    const rect = waveformCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = x / rect.width;
+    if (audio.duration) audio.currentTime = ratio * audio.duration;
+  });
+} else {
+  waveformCanvas.addEventListener('touchstart', (e)=>{
+    if (!e.touches || !e.touches[0]) return;
+    const rect = waveformCanvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const ratio = x / rect.width;
+    if (audio.duration) audio.currentTime = ratio * audio.duration;
+  }, { passive: true });
+
+  waveformCanvas.addEventListener('mousedown', (e)=>{
+    const rect = waveformCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = x / rect.width;
+    if (audio.duration) audio.currentTime = ratio * audio.duration;
+  });
+}
 
 /* responsive redraw debounce */
 window.addEventListener('resize', ()=> {
@@ -285,6 +340,17 @@ window.addEventListener('resize', ()=> {
   window._wfResize = setTimeout(()=> {
     if (audio.currentSrc) setTimeout(()=> drawWaveformFromAudio().catch(()=>{}), 120);
   }, 180);
+});
+
+/* keyboard shortcuts (no changes) */
+document.addEventListener('keydown', (e)=>{
+  const tag = document.activeElement && document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.code === 'Space') { e.preventDefault(); if (audio.paused) audio.play().catch(()=>{}); else audio.pause(); }
+  if (e.code === 'ArrowRight') { audio.currentTime = Math.min(audio.duration||0, audio.currentTime + 5); }
+  if (e.code === 'ArrowLeft') { audio.currentTime = Math.max(0, audio.currentTime - 5); }
+  if (e.code === 'ArrowUp') { volumeSlider.value = Math.min(1, parseFloat(volumeSlider.value) + 0.05); changeVolume(); }
+  if (e.code === 'ArrowDown') { volumeSlider.value = Math.max(0, parseFloat(volumeSlider.value) - 0.05); changeVolume(); }
 });
 
 /* initial draw scheduling */
